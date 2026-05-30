@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  # 1. Veritabanı Konteyneri
+  postgres:
+    image: postgres:15-alpine
+    container_name: factory_db_container
+    # ... (environment kısmı aynı kalacak) ...
+    ports:
+      - "5433:5432"  # DİKKAT: Sadece burası değişti (5432 yerine 5433 yaptık)
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - factory_network
+
+  # 2. Node.js Backend Konteyneri
+  backend:
+    build: ./backend
+    container_name: factory_backend
+    ports:
+      - "5000:5000"
+    depends_on:
+      - postgres
+    networks:
+      - factory_network
+
+  # 3. Python AI Konteyneri
+  ai-service:
+    build: ./ai-service
+    container_name: factory_ai_service
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+    networks:
+      - factory_network
+
+  # 4. React Frontend Konteyneri
+  frontend:
+    build: ./frontend
+    container_name: factory_frontend
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+      - ai-service
+    networks:
+      - factory_network
+
+volumes:
+  pgdata:
+
+networks:
+  factory_network:
+    driver: bridge
