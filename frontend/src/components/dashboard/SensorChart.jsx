@@ -7,19 +7,29 @@ function SensorChart({ sensorId, title, color }) {
 
   useEffect(() => {
     // Geçmiş verileri çeken fonksiyon
-    const fetchHistory = async () => {
+    const fetchHistory = async (attempt = 1) => {
       try {
         const response = await fetch(`http://localhost:5000/api/sensors/${sensorId}/history`);
+
+        if (!response.ok) {
+          throw new Error(`İstek başarısız: ${response.status}`);
+        }
+
         const historyData = await response.json();
         setData(historyData);
       } catch (error) {
-        console.error("Grafik verisi alınamadı", error);
+        if (attempt < 3) {
+          window.setTimeout(() => fetchHistory(attempt + 1), 1000);
+          return;
+        }
+
+        setData([]);
       }
     };
 
     // İlk yüklemede ve sonrasında her 2 saniyede bir grafiği güncelle
     fetchHistory();
-    const intervalId = setInterval(fetchHistory, 2000);
+    const intervalId = setInterval(() => fetchHistory(), 2000);
     return () => clearInterval(intervalId);
   }, [sensorId]);
 
@@ -28,8 +38,8 @@ function SensorChart({ sensorId, title, color }) {
     <div className="bg-slate-800 border border-slate-700 p-6 rounded-xl shadow-lg w-full">
       <h3 className="text-slate-300 text-sm font-semibold uppercase tracking-wider mb-4">{title} Trendi (Son 10 Ölçüm)</h3>
       
-      <div style={{ height: '300px', width: '100%' }}>
-        <ResponsiveContainer width="100%" height="100%">
+      <div style={{ height: '300px', width: '100%', minWidth: 0 }}>
+        <ResponsiveContainer width="100%" height={300}>
           <LineChart data={data}>
             <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
             <XAxis dataKey="time" stroke="#94a3b8" />

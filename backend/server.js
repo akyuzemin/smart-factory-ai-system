@@ -138,9 +138,48 @@ async function fetchAiAnalysis() {
   throw lastError || new Error('AI servisi erişilemedi.');
 }
 
+function getMachineMaintenanceHistory(machineId) {
+  const historyByMachine = {
+    1: [
+      { id: 1, title: 'Motor yağ değişimi', date: '2026-07-12', note: 'Yıllık bakım planı kapsamında tamamlandı.' },
+      { id: 2, title: 'Kritik sıcaklık kontrolü', date: '2026-07-08', note: 'Sıcaklık delta analizi yapıldı.' },
+    ],
+    2: [
+      { id: 3, title: 'Hidrolik filtre değişimi', date: '2026-07-10', note: 'Basınç düşüşü sonrası bakım yapıldı.' },
+    ],
+    3: [
+      { id: 4, title: 'Robot kol kalibrasyonu', date: '2026-07-11', note: 'Hassas hareket testi tamamlandı.' },
+    ],
+  };
+
+  return historyByMachine[machineId] || [
+    { id: 5, title: 'Standart bakım planı', date: '2026-07-01', note: 'Makine için genel kontrol planı oluşturuldu.' },
+  ];
+}
+
 function getMachineId(value) {
   const machineId = Number(value);
   return Number.isInteger(machineId) && machineId > 0 ? machineId : null;
+}
+
+function getSensorStatus(sensorType, latestValue) {
+  if (latestValue === null || latestValue === undefined) {
+    return 'Veri Yok';
+  }
+
+  if (sensorType === 'temperature' && latestValue > 80) {
+    return 'Kritik';
+  }
+
+  if (sensorType === 'pressure' && latestValue > 130) {
+    return 'Kritik';
+  }
+
+  if (sensorType === 'humidity' && latestValue > 70) {
+    return 'Kritik';
+  }
+
+  return 'Normal';
 }
 
 async function findMachine(machineId) {
@@ -237,15 +276,187 @@ app.get('/api/sensors', async (req, res) => {
     const result = await pool.query(`
       SELECT
         s.id,
+        s.name,
         s.name AS title,
+        s.sensor_type,
         s.unit,
-        (SELECT value FROM sensor_logs WHERE sensor_id = s.id ORDER BY timestamp DESC LIMIT 1) AS value
+        m.id AS machine_id,
+        m.name AS machine_name,
+        latest.value AS value,
+        CASE
+          WHEN latest.value IS NULL THEN 'Veri Yok'
+          WHEN s.sensor_type = 'temperature' AND latest.value > 80 THEN 'Kritik'
+          WHEN s.sensor_type = 'pressure' AND latest.value > 130 THEN 'Kritik'
+          WHEN s.sensor_type = 'humidity' AND latest.value > 70 THEN 'Kritik'
+          ELSE 'Normal'
+        END AS status
       FROM sensors s
+      LEFT JOIN machines m ON m.id = s.machine_id
+      LEFT JOIN LATERAL (
+        SELECT value
+        FROM sensor_logs
+        WHERE sensor_id = s.id
+        ORDER BY timestamp DESC
+        LIMIT 1
+      ) latest ON TRUE
+      ORDER BY s.id
     `);
     res.json(result.rows);
   } catch (error) {
     console.error('Sensörler alınamadı:', error);
     res.status(500).send('Veritabanı hatası');
+  }
+});
+
+app.get('/api/sensors/:id', async (req, res) => {
+  const sensorId = Number(req.params.id);
+
+  if (!Number.isInteger(sensorId) || sensorId <= 0) {
+    return res.status(400).json({ message: 'Geçersiz sensör kimliği.' });
+  }
+
+  try {
+    const result = await pool.query(`
+      SELECT
+        s.id,
+        s.name,
+        s.sensor_type,
+        s.unit,
+        s.machine_id,
+        m.name AS machine_name,
+        latest.value AS latest_value,
+        CASE
+          WHEN latest.value IS NULL THEN 'Veri Yok'
+          WHEN s.sensor_type = 'temperature' AND latest.value > 80 THEN 'Kritik'
+          WHEN s.sensor_type = 'pressure' AND latest.value > 130 THEN 'Kritik'
+          WHEN s.sensor_type = 'humidity' AND latest.value > 70 THEN 'Kritik'
+          ELSE 'Normal'
+        END AS status
+      FROM sensors s
+      LEFT JOIN machines m ON m.id = s.machine_id
+      LEFT JOIN LATERAL (
+        SELECT value
+        FROM sensor_logs
+        WHERE sensor_id = s.id
+        ORDER BY timestamp DESC
+        LIMIT 1
+      ) latest ON TRUE
+      WHERE s.id = $1
+    `, [sensorId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Sensör bulunamadı.' });
+    }
+
+    return res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Sensör detayı alınamadı:', error);
+    return res.status(500).json({ message: 'Sensör detayı alınamadı.' });
+  }
+});
+
+app.get('/api/sensors/:id/statistics', async (req, res) => {
+  const sensorId = Number(req.params.id);
+
+  if (!Number.isInteger(sensorId) || sensorId <= 0) {
+    return res.status(400).json({ message: 'Geçersiz sensör kimliği.' });
+  }
+
+  try {
+    const result = await pool.query(`
+      SELECT
+        MIN(value) AS min_value,
+        MAX(value) AS max_value,
+        ROUND(AVG(value), 2) AS avg_value
+      FROM sensor_logs
+      WHERE sensor_id = $1
+    `, [sensorId]);
+
+    return res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Sensör istatistikleri alınamadı:', error);
+    return res.status(500).json({ message: 'Sensör istatistikleri alınamadı.' });
+  }
+});
+
+app.get('/api/sensors/:id/ai-comment', async (req, res) => {
+  const sensorId = Number(req.params.id);
+
+  if (!Number.isInteger(sensorId) || sensorId <= 0) {
+    return res.status(400).json({ message: 'Geçersiz sensör kimliği.' });
+  }
+
+  try {
+    const sensorResult = await pool.query(`
+      SELECT s.name, s.sensor_type, latest.value AS latest_value
+      FROM sensors s
+      LEFT JOIN LATERAL (
+        SELECT value
+        FROM sensor_logs
+        WHERE sensor_id = s.id
+        ORDER BY timestamp DESC
+        LIMIT 1
+      ) latest ON TRUE
+      WHERE s.id = $1
+    `, [sensorId]);
+
+    if (sensorResult.rows.length === 0) {
+      return res.status(404).json({ message: 'Sensör bulunamadı.' });
+    }
+
+    const sensor = sensorResult.rows[0];
+    const status = getSensorStatus(sensor.sensor_type, Number(sensor.latest_value));
+    let aiMessage = `AI yorumu: ${sensor.name} için değerler normal aralıkta takip ediliyor.`;
+
+    if (sensorId === 1) {
+      try {
+        const analysis = await fetchAiAnalysis();
+        if (analysis && analysis.ai_message) {
+          aiMessage = analysis.ai_message;
+        }
+      } catch (error) {
+        console.warn('AI servisi yorumu alınamadı, yerel yoruma dönüldü.', error);
+      }
+    }
+
+    if (status === 'Kritik') {
+      aiMessage = `AI yorumu: ${sensor.name} kritik seviyeye ulaştı. Öncelikli bakım değerlendirmesi önerilir.`;
+    }
+
+    return res.json({ sensor_id: sensorId, sensor_name: sensor.name, ai_message: aiMessage });
+  } catch (error) {
+    console.error('AI yorumu alınamadı:', error);
+    return res.status(500).json({ message: 'AI yorumu alınamadı.' });
+  }
+});
+
+app.get('/api/sensors/:id/alarm-history', async (req, res) => {
+  const sensorId = Number(req.params.id);
+
+  if (!Number.isInteger(sensorId) || sensorId <= 0) {
+    return res.status(400).json({ message: 'Geçersiz sensör kimliği.' });
+  }
+
+  try {
+    const historyBySensor = {
+      1: [
+        { id: 1, title: 'Sıcaklık artışı', time: '2026-07-22 21:31', severity: 'Orta', description: 'Motor sıcaklığı kısa süreli yükseliş gösterdi.' },
+        { id: 2, title: 'Eşik uyarısı', time: '2026-07-22 20:45', severity: 'Düşük', description: 'Sistem 80°C sınırını izlemeye aldı.' },
+      ],
+      2: [
+        { id: 3, title: 'Basınç dalgalanması', time: '2026-07-22 21:10', severity: 'Orta', description: 'Ana valf basıncında kısa süreli değişim tespit edildi.' },
+      ],
+      3: [
+        { id: 4, title: 'Nem artışı', time: '2026-07-22 20:50', severity: 'Düşük', description: 'Ortam neminde hafif artış izlendi.' },
+      ],
+    };
+
+    return res.json(historyBySensor[sensorId] || [
+      { id: 5, title: 'Standart izleme', time: '2026-07-22 20:00', severity: 'Düşük', description: 'Bu sensör için yeni alarm kaydı bulunamadı.' },
+    ]);
+  } catch (error) {
+    console.error('Alarm geçmişi alınamadı:', error);
+    return res.status(500).json({ message: 'Alarm geçmişi alınamadı.' });
   }
 });
 
@@ -259,6 +470,53 @@ app.get('/api/ai/anomaly-summary', async (req, res) => {
       status: 'error',
       message: 'AI servisine şu anda ulaşılamıyor.',
     });
+  }
+});
+
+app.get('/api/machines/:id/ai-analysis', async (req, res) => {
+  const machineId = getMachineId(req.params.id);
+
+  if (!machineId) {
+    return res.status(400).json({ message: 'Geçersiz makine kimliği.' });
+  }
+
+  try {
+    const analysis = await fetchAiAnalysis();
+
+    if (machineId !== 1) {
+      return res.json({
+        status: 'waiting',
+        machine_id: machineId,
+        sensor: 'Bu makine için AI modeli henüz aktif değil',
+        latest_value: null,
+        is_anomaly: false,
+        ai_message: 'Bu makine için özel AI modeli eğitimi henüz hazır değil.',
+      });
+    }
+
+    return res.json({ ...analysis, machine_id: machineId });
+  } catch (error) {
+    console.error('Makine AI analizi alınamadı:', error);
+    return res.status(503).json({
+      status: 'error',
+      message: 'AI servisine ulaşılamıyor.',
+    });
+  }
+});
+
+app.get('/api/machines/:id/maintenance-history', async (req, res) => {
+  const machineId = getMachineId(req.params.id);
+
+  if (!machineId) {
+    return res.status(400).json({ message: 'Geçersiz makine kimliği.' });
+  }
+
+  try {
+    const history = getMachineMaintenanceHistory(machineId);
+    return res.json(history);
+  } catch (error) {
+    console.error('Bakım geçmişi alınamadı:', error);
+    return res.status(500).json({ message: 'Bakım geçmişi alınamadı.' });
   }
 });
 
