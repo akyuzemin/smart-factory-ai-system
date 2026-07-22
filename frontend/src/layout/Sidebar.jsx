@@ -8,6 +8,7 @@ const navigationItems = [
   { label: 'Operatörler', icon: 'operators', to: '/operators' },
   { label: 'Bakım', icon: 'maintenance', to: '/maintenance' },
   { label: 'Raporlar', icon: 'reports', to: '/reports' },
+  { label: 'Alarmlar', icon: 'alarms', to: '/alarms' },
   { label: 'AI Kalite Kontrol', icon: 'ai', to: '/ai-quality-control' },
   { label: 'Ayarlar', icon: 'settings', to: '/settings' },
 ];
@@ -88,6 +89,7 @@ function NavigationIcon({ name }) {
     operators: <><circle cx="12" cy="8" r="3" /><path d="M5 21a7 7 0 0 1 14 0" /></>,
     maintenance: <><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.8 2.8-2.1-2.1 2.9-2.7Z" /></>,
     reports: <><path d="M5 3h10l4 4v14H5V3Z" /><path d="M15 3v5h5M8 12h8M8 16h6" /></>,
+    alarms: <><path d="M12 3 3 19h18L12 3Z" /><path d="M12 8v5" /><path d="M12 16h.01" /></>,
     ai: <><rect x="4" y="4" width="16" height="16" rx="3" /><path d="M9 10h.01M15 10h.01M9 15c1.5 1 4.5 1 6 0M12 1v3m0 16v3M1 12h3m16 0h3" /></>,
     settings: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.1 2.1-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5v.2h-3v-.2a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1-2.1-2.1.1-.1A1.7 1.7 0 0 0 7 15a1.7 1.7 0 0 0-1.5-1H5.3v-3h.2A1.7 1.7 0 0 0 7 10a1.7 1.7 0 0 0-.3-1.9l-.1-.1 2.1-2.1.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.5v-.2h3v.2a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1 2.1 2.1-.1.1A1.7 1.7 0 0 0 19.4 10a1.7 1.7 0 0 0 1.5 1h.2v3h-.2a1.7 1.7 0 0 0-1.5 1Z" /></>,
   };
