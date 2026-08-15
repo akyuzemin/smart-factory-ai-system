@@ -1,0 +1,1 @@
+inspection1.jpg dosyasını bu klasöre koyun.

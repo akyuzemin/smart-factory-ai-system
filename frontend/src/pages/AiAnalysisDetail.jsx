@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import RiskGauge from '../components/dashboard/RiskGauge';
-import Timeline from '../components/dashboard/Timeline';
+import RiskGauge from './RiskGauge';
+import Timeline from './Timeline';
 
 const mockAnalyses = {
   'A-001': {
