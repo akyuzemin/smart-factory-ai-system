@@ -4,7 +4,7 @@ const { Pool } = require('pg');
 // Docker'da ayağa kaldırdığımız veritabanının kimlik bilgileri
 const pool = new Pool({
   user: 'admin',
-  host: 'postgres', // Docker Compose'da servis adıyla erişim
+  host: 'localhost', // Docker Compose'da servis adıyla erişim
   database: 'factory_db',
   password: '1234',
   port: 5432,
